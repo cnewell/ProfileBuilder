@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 
+type Message = {
+  role: string;
+  content: string;
+};
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [textResponse, setTextResponse] = useState("");
   const [jsonResponse, setJsonResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,6 +21,8 @@ export default function Home() {
     setTextResponse("");
     setJsonResponse("");
     setLoading(true);
+
+    setMessages((prev) => [...prev, { role: "user", content: prompt }]);
 
     try {
       const response = await fetch("/api/analyze-preferences", {
@@ -34,6 +42,13 @@ export default function Home() {
       let currentText = "";
       let currentJson = "";
       let jsonComplete = false;
+
+      const formattedHistory = messages
+        .map((msg) => msg.content)
+        .join("\n\n");
+      if (formattedHistory) {
+        setTextResponse(formattedHistory + "\n\n");
+      }
 
       while (true) {
         const { done, value } = await reader.read();
@@ -84,6 +99,13 @@ export default function Home() {
         } catch {
           setJsonResponse(currentJson);
         }
+      }
+
+      if (currentText.trim()) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: currentText },
+        ]);
       }
     } catch (err) {
       setError(String(err));
@@ -141,12 +163,30 @@ export default function Home() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Preference Summary:
               </label>
-              <textarea
-                value={textResponse}
-                readOnly
-                className="flex-1 p-4 border border-gray-300 rounded-lg bg-gray-50 font-sans text-sm resize-none text-black"
-                placeholder="Text response will appear here..."
-              />
+              <div className="flex-1 p-4 border border-gray-300 rounded-lg bg-gray-50 font-sans text-sm overflow-y-auto text-black whitespace-pre-wrap">
+                {messages.length === 0 && !textResponse ? (
+                  <span className="text-gray-400">Text response will appear here...</span>
+                ) : (
+                  <>
+                    {messages.map((msg, idx) => (
+                      <div key={idx} className="mb-4">
+                        {msg.role === "user" ? (
+                          <em>{msg.content}</em>
+                        ) : (
+                          msg.content
+                        )}
+                      </div>
+                    ))}
+                    {textResponse && (
+                      <div>
+                        {textResponse.split("\n").map((line, idx) => (
+                          <div key={idx}>{line}</div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col">
