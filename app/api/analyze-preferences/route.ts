@@ -28,7 +28,38 @@ export async function POST(request: NextRequest) {
           client.messages.stream({
             model: "claude-sonnet-4-6",
             max_tokens: 1024,
-            system: "Extract the travel preferences and return them as a JSON object with a 'preferences' property containing an array of strings. Each string should be a specific preference or interest.",
+            system: `Extract the travel preferences from the user's input and return a JSON object matching this schema:
+
+{
+  "preferences": [
+    {
+      "name": "Month of Travel",
+      "legal-values": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+      "preferred": [],
+      "forbidden": []
+    },
+    {
+      "name": "Region",
+      "legal-values": ["North America", "Central America", "South America", "Caribbean", "Western Europe", "Eastern Europe", "North Africa", "Sub-Saharan Africa", "Middle East", "Central Asia", "East Asian and Japan", "Australia and Pacific Islands"],
+      "preferred": [],
+      "forbidden": []
+    },
+    {
+      "name": "Duration",
+      "legal-values": ["Day Trip", "Weekend", "One Week", "Two Weeks", "More than two weeks"],
+      "preferred": [],
+      "forbidden": []
+    }
+  ]
+}
+
+Instructions:
+- Populate the "preferred" and "forbidden" lists based on what the user specifies
+- Only include the three preference categories listed above
+- Normalize user input to match values in legal-values (e.g., "Paris" → "Western Europe" for Region, "can't take more than a week" → add "Two Weeks" and "More than two weeks" to Duration forbidden)
+- Do not include values in the forbidden list solely because they were not mentioned as preferences
+- Do not enforce disjoint lists - preferred and forbidden can overlap on the same preference
+- The "name" and "legal-values" fields are read-only and must not be modified`,
             messages: [
               {
                 role: "user",
