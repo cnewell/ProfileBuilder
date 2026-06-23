@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const { prompt } = await request.json();
+  const { messages, preferences } = await request.json();
 
   const client = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -18,12 +18,7 @@ export async function POST(request: NextRequest) {
             model: "claude-sonnet-4-6",
             max_tokens: 1024,
             system: "Provide a clear, natural language summary of the travel preferences you can identify from the text provided. Focus on destinations, activities, travel style, accommodation preferences, and any other travel-related preferences mentioned.",
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
+            messages: messages,
           }),
           client.messages.stream({
             model: "claude-sonnet-4-6",
@@ -60,12 +55,7 @@ Instructions:
 - Do not include values in the forbidden list solely because they were not mentioned as preferences
 - Do not enforce disjoint lists - preferred and forbidden can overlap on the same preference
 - The "name" and "legal-values" fields are read-only and must not be modified`,
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
+            messages: messages,
           }),
         ]);
 

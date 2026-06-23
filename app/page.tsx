@@ -7,6 +7,70 @@ type Message = {
   content: string;
 };
 
+type PreferencesObject = {
+  preferences: Array<{
+    name: string;
+    "legal-values": string[];
+    preferred: string[];
+    forbidden: string[];
+  }>;
+};
+
+const DEFAULT_PREFERENCES: PreferencesObject = {
+  preferences: [
+    {
+      name: "Month of Travel",
+      "legal-values": [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ],
+      preferred: [],
+      forbidden: [],
+    },
+    {
+      name: "Region",
+      "legal-values": [
+        "North America",
+        "Central America",
+        "South America",
+        "Caribbean",
+        "Western Europe",
+        "Eastern Europe",
+        "North Africa",
+        "Sub-Saharan Africa",
+        "Middle East",
+        "Central Asia",
+        "East Asian and Japan",
+        "Australia and Pacific Islands",
+      ],
+      preferred: [],
+      forbidden: [],
+    },
+    {
+      name: "Duration",
+      "legal-values": [
+        "Day Trip",
+        "Weekend",
+        "One Week",
+        "Two Weeks",
+        "More than two weeks",
+      ],
+      preferred: [],
+      forbidden: [],
+    },
+  ],
+};
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [textResponse, setTextResponse] = useState("");
@@ -14,6 +78,29 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [preferences, setPreferences] = useState<PreferencesObject>(
+    DEFAULT_PREFERENCES
+  );
+
+  const getPreferences = (): PreferencesObject => {
+    if (typeof window === "undefined") return DEFAULT_PREFERENCES;
+    const stored = localStorage.getItem("preferences");
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return DEFAULT_PREFERENCES;
+      }
+    }
+    return DEFAULT_PREFERENCES;
+  };
+
+  const savePreferences = (prefs: PreferencesObject) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("preferences", JSON.stringify(prefs));
+      setPreferences(prefs);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +112,19 @@ export default function Home() {
     setMessages((prev) => [...prev, { role: "user", content: prompt }]);
 
     try {
+      const currentPreferences = getPreferences();
+      const newMessages: Message[] = [
+        ...messages,
+        { role: "user", content: prompt },
+      ];
+
       const response = await fetch("/api/analyze-preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          messages: newMessages,
+          preferences: currentPreferences,
+        }),
       });
 
       if (!response.ok) {
@@ -94,8 +190,15 @@ export default function Home() {
       // Parse and pretty-print JSON after complete
       if (currentJson.trim() && jsonComplete) {
         try {
-          const parsed = JSON.parse(currentJson);
+          const filteredJson = currentJson
+            .split("\n")
+            .filter((line) => !line.trim().startsWith("```"))
+            .join("\n");
+          const parsed = JSON.parse(filteredJson);
           setJsonResponse(JSON.stringify(parsed, null, 2));
+          if (parsed && parsed.preferences) {
+            savePreferences(parsed);
+          }
         } catch {
           setJsonResponse(currentJson);
         }
@@ -112,6 +215,15 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClear = () => {
+    setPrompt("");
+    setTextResponse("");
+    setJsonResponse("");
+    setMessages([]);
+    setError("");
+    savePreferences(DEFAULT_PREFERENCES);
   };
 
   return (
@@ -143,13 +255,23 @@ export default function Home() {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || !prompt.trim()}
-              className="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? "Analyzing..." : "Analyze Preferences"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={loading || !prompt.trim()}
+                className="flex-1 bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? "Analyzing..." : "Analyze Preferences"}
+              </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={loading}
+                className="flex-1 bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear
+              </button>
+            </div>
           </form>
 
           {error && (
