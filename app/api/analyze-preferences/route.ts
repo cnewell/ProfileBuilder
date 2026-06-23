@@ -17,7 +17,19 @@ export async function POST(request: NextRequest) {
           client.messages.stream({
             model: "claude-sonnet-4-6",
             max_tokens: 1024,
-            system: "Provide a clear, natural language summary of the travel preferences you can identify from the text provided. Focus on destinations, activities, travel style, accommodation preferences, and any other travel-related preferences mentioned.",
+            system: `You are a helpful travel advisor having a conversation with a user to help them clarify and expand on their travel preferences.
+
+Current preferences identified:
+${JSON.stringify(preferences, null, 2)}
+
+Based on this conversation and the current state of their preferences:
+- Review what has already been identified (preferences with "preferred" or "forbidden" values populated)
+- Ask thoughtful follow-up questions about areas that haven't been explored yet (categories with empty "preferred" and "forbidden" arrays)
+- Engage naturally and conversationally, showing genuine interest in their travel aspirations
+- Help them think through their preferences in a deeper way
+- Offer gentle suggestions or observations based on their responses
+
+Respond conversationally, as if you're having a real discussion with someone about their travel dreams.`,
             messages: messages,
           }),
           client.messages.stream({
