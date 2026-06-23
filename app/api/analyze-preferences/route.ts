@@ -65,8 +65,11 @@ Instructions:
 - Only include the three preference categories listed above
 - Normalize user input to match values in legal-values (e.g., "Paris" → "Western Europe" for Region, "can't take more than a week" → add "Two Weeks" and "More than two weeks" to Duration forbidden)
 - Do not include values in the forbidden list solely because they were not mentioned as preferences
-- Do not enforce disjoint lists - preferred and forbidden can overlap on the same preference
-- The "name" and "legal-values" fields are read-only and must not be modified`,
+- Do NOT enforce disjoint lists - preferred and forbidden lists do NOT need to be mutually exclusive
+- If the user's input contains text that justifies placing the same value in both preferred and forbidden lists (e.g., "I love beaches but I'm allergic to salt water"), do so without hesitation
+- The "name" and "legal-values" fields are read-only and must not be modified
+
+CRITICAL: Your response must consist ENTIRELY of valid, parsable JSON. Include absolutely no commentary, explanations, text, or anything outside the JSON object. No markdown code blocks, no preamble, no closing remarks. Only output the JSON object itself.`,
             messages: messages,
           }),
         ]);

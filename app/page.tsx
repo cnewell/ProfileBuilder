@@ -81,6 +81,11 @@ export default function Home() {
   const [preferences, setPreferences] = useState<PreferencesObject>(
     DEFAULT_PREFERENCES
   );
+  const [conflictData, setConflictData] = useState<{
+    jsonObject: PreferencesObject;
+    conflicts: Array<{ preferenceName: string; value: string }>;
+    resolutions: Map<string, "remove-preferred" | "remove-forbidden" | "remove-both">;
+  } | null>(null);
 
   const getPreferences = (): PreferencesObject => {
     if (typeof window === "undefined") return DEFAULT_PREFERENCES;
@@ -100,6 +105,52 @@ export default function Home() {
       localStorage.setItem("preferences", JSON.stringify(prefs));
       setPreferences(prefs);
     }
+  };
+
+  const findConflicts = (
+    prefs: PreferencesObject
+  ): Array<{ preferenceName: string; value: string }> => {
+    const conflicts: Array<{ preferenceName: string; value: string }> = [];
+
+    for (const pref of prefs.preferences) {
+      for (const value of pref.preferred) {
+        if (pref.forbidden.includes(value)) {
+          conflicts.push({
+            preferenceName: pref.name,
+            value,
+          });
+        }
+      }
+    }
+
+    return conflicts;
+  };
+
+  const applyResolutions = (
+    jsonObject: PreferencesObject,
+    resolutions: Map<string, "remove-preferred" | "remove-forbidden" | "remove-both">
+  ): PreferencesObject => {
+    const updated = JSON.parse(JSON.stringify(jsonObject));
+
+    for (const pref of updated.preferences) {
+      for (const value of pref.preferred) {
+        if (pref.forbidden.includes(value)) {
+          const key = `${pref.name}:${value}`;
+          const resolution = resolutions.get(key);
+
+          if (resolution === "remove-preferred") {
+            pref.preferred = pref.preferred.filter((v: string) => v !== value);
+          } else if (resolution === "remove-forbidden") {
+            pref.forbidden = pref.forbidden.filter((v: string) => v !== value);
+          } else if (resolution === "remove-both") {
+            pref.preferred = pref.preferred.filter((v: string) => v !== value);
+            pref.forbidden = pref.forbidden.filter((v: string) => v !== value);
+          }
+        }
+      }
+    }
+
+    return updated;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -197,7 +248,16 @@ export default function Home() {
           const parsed = JSON.parse(filteredJson);
           setJsonResponse(JSON.stringify(parsed, null, 2));
           if (parsed && parsed.preferences) {
-            savePreferences(parsed);
+            const conflicts = findConflicts(parsed);
+            if (conflicts.length > 0) {
+              setConflictData({
+                jsonObject: parsed,
+                conflicts,
+                resolutions: new Map(),
+              });
+            } else {
+              savePreferences(parsed);
+            }
           }
         } catch {
           setJsonResponse(currentJson);
@@ -224,6 +284,42 @@ export default function Home() {
     setMessages([]);
     setError("");
     savePreferences(DEFAULT_PREFERENCES);
+  };
+
+  const handleResolveConflict = (
+    key: string,
+    resolution: "remove-preferred" | "remove-forbidden" | "remove-both"
+  ) => {
+    if (conflictData) {
+      const newResolutions = new Map(conflictData.resolutions);
+      newResolutions.set(key, resolution);
+      setConflictData({
+        ...conflictData,
+        resolutions: newResolutions,
+      });
+    }
+  };
+
+  const handleApplyResolutions = () => {
+    if (!conflictData) return;
+
+    const allResolved = conflictData.conflicts.every((conflict) =>
+      conflictData.resolutions.has(`${conflict.preferenceName}:${conflict.value}`)
+    );
+
+    if (!allResolved) {
+      setError("Please resolve all conflicts before continuing.");
+      return;
+    }
+
+    const updated = applyResolutions(
+      conflictData.jsonObject,
+      conflictData.resolutions
+    );
+    setJsonResponse(JSON.stringify(updated, null, 2));
+    savePreferences(updated);
+    setConflictData(null);
+    setError("");
   };
 
   return (
@@ -324,6 +420,101 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {conflictData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Preference Conflicts Detected
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  The following values appear in both preferred and forbidden lists. Please choose how to resolve each conflict:
+                </p>
+
+                <div className="space-y-6">
+                  {conflictData.conflicts.map((conflict) => {
+                    const key = `${conflict.preferenceName}:${conflict.value}`;
+                    const currentResolution = conflictData.resolutions.get(key);
+
+                    return (
+                      <div key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <h3 className="font-semibold text-gray-800 mb-3">
+                          {conflict.preferenceName}: <span className="text-indigo-600">"{conflict.value}"</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={key}
+                              value="remove-preferred"
+                              checked={currentResolution === "remove-preferred"}
+                              onChange={() =>
+                                handleResolveConflict(
+                                  key,
+                                  "remove-preferred"
+                                )
+                              }
+                              className="mr-3"
+                            />
+                            <span className="text-gray-700">
+                              Remove from preferred list
+                            </span>
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={key}
+                              value="remove-forbidden"
+                              checked={currentResolution === "remove-forbidden"}
+                              onChange={() =>
+                                handleResolveConflict(
+                                  key,
+                                  "remove-forbidden"
+                                )
+                              }
+                              className="mr-3"
+                            />
+                            <span className="text-gray-700">
+                              Remove from forbidden list
+                            </span>
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name={key}
+                              value="remove-both"
+                              checked={currentResolution === "remove-both"}
+                              onChange={() =>
+                                handleResolveConflict(
+                                  key,
+                                  "remove-both"
+                                )
+                              }
+                              className="mr-3"
+                            />
+                            <span className="text-gray-700">
+                              Remove from both lists
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <button
+                    onClick={handleApplyResolutions}
+                    className="flex-1 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Apply Resolutions
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
